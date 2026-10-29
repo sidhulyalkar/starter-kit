@@ -77,6 +77,12 @@ def paired_intervention_report(reports: dict[str, dict]) -> dict:
                 base["all_zone_comfort_excursions_ge_2_kelvin"]
             ),
             "max_target_zone_absolute_change_kelvin": s["max_absolute_delta_kelvin"],
+            "reward_component_totals": dict(s["reward_component_sums"]),
+            "reward_component_differences": {
+                key: s["reward_component_sums"][key] -
+                     base["reward_component_sums"][key]
+                for key in base["reward_component_sums"]
+            },
         }
         if any(isinstance(x,float) and not math.isfinite(x) for x in row.values()):
             raise ValueError(f"Nonfinite outcome: {name}")
@@ -89,7 +95,7 @@ def paired_intervention_report(reports: dict[str, dict]) -> dict:
         "interpretation": (
             "Same initial simulator scenario with distinct intervention policies. "
             "Other commands may change through closed-loop state feedback, "
-            "so only the randomized/controlled cap assignment differs initially. "
+            "so only the controlled cap assignment differs initially. "
             "One public scenario cannot establish transfer, safe control or "
             "real-building causality. Comfort proxy is unweighted sensor "
             "band excursions, NOT official occupancy-weighted comfort reward."
