@@ -20,7 +20,7 @@ jobs:
           - building_train_7
           - building_train_8
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
