@@ -56,3 +56,24 @@ python -m scripts.fit_thermal_ridge \
 2. Compare against persistence, linear RC/ridge, AHU-pooled and nonlinear residual models under identical held-outs.
 3. Check multi-step recursive Kelvin RMSE/MAE at 5, 15 and 60 minutes and confidence interval coverage.
 4. Only then train a typed graph-conditioned model or allow the model into a constrained MPC.
+
+## First observed public cross-building result (2026-10-29)
+
+[Successful GitHub Actions pilot](https://github.com/sidhulyalkar/starter-kit/actions/runs/40835021698), on one source/target pair:
+
+- Training: building_train_1 / atlanta_2, 288 steps, 39 zone sensors = 11,232 zone observations.
+- Evaluation: building_train_2 / denver_8, 288 steps, 85 zone sensors = 24,480 zone observations.
+- Persistence MAE: 0.08144898 K; shared ridge MAE: 0.07722960 K (5.18% lower).
+- Persistence RMSE: 0.36475677 K; shared ridge RMSE: 0.36520366 K (slightly **worse**).
+- Persistence 95th-percentile absolute error: 0.32944 K; ridge: 0.31713 K.
+
+**Decision:** not qualified for model-based control. One-step MAE improved but
+RMSE did not; the model has no recursive 15/60-minute validation, uncertainty
+calibration, or data diversity across policies. Also, building and climate
+changed together in this first comparison. A follow-up evaluates the second
+public building under Atlanta as well, and reports per-zone tail failures.
+This is a public pilot only, not procedural holdout or private competition score.
+
+An apparently promising average cannot mask larger squared errors. Do not
+reuse these public results for unconstrained hyperparameter selection and
+then describe them as an untouched held-out test.
