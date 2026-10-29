@@ -184,6 +184,7 @@ def diagnose(building: str, weather: str, zone: str, policy_name: str,
     if len(tracker.rewards) != len(out):
         raise RuntimeError("Reward steps out of sync with physics trace")
     summary.update({
+        "intervention_modified_steps": int(getattr(policy, "intervention_modified_steps", 0)),
         "total_reward": float(np.sum(tracker.rewards)),
         "loss_per_step": abs(float(np.sum(tracker.rewards)))/len(out),
         "all_zone_sensor_count": len(all_zone_indices),
