@@ -123,3 +123,39 @@ short-run reward but increased severe comfort-step observations.
 Neither cap is qualified for general use. A targeted follow-up on other cold
 buildings should be performed with the reheat-50 treatment frozen in advance,
 and a longer full-horizon comparison should follow if it remains promising.
+
+## Preselected cross-building public replication (2026-10-29)
+
+[Successful two-job replication workflow](https://github.com/sidhulyalkar/starter-kit/actions/runs/40975852372)
+ran **exactly the same 50% native reheat cap** selected on the earlier
+building_train_2/denver_8 pilot, without modifying the cap based on results.
+Each scenario is 288 steps. Each had its own 100% sham that matched
+reference zone-temperature traces and reward.
+
+| Public scenario | Original loss/step | 50% cap loss/step | Relative change | VAV_1 jumps >=2 K (reference → cap) | All-zone jumps >=5 K | Added severe comfort-step counts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| building_train_2/denver_8 (discovery) | 0.00391968 | 0.00375629 | **-4.17%** | 44 → 29 | 22 → 10 | +17 |
+| building_train_1/fairbanks_1 (replication) | 0.00073244 | 0.00072612 | **-0.86%** | 0 → 0 | 0 → 0 | 0 |
+| building_train_4/denver_2 (replication) | 0.00234692 | 0.00226822 | **-3.35%** | 7 → 0 | 12 → 12 | +7 |
+
+On Fairbanks Building 1 the cap was exercised on **87** controller steps,
+yet VAV_1 had no >=2 K jumps under either policy and max change was
+only 0.0624 K. The reward difference there must **not** be attributed to
+suppression of a jump that never occurred. On Denver Building 4, the
+cap was exercised on **72** steps and VAV_1's maximum observed change
+fell from 3.16 K to 1.44 K.
+
+**Important limits:**
+- Three *public training* scenarios, not independent held-out procedural
+  buildings and not randomized trials in physical buildings.
+- The 50% arm was chosen after observing the first scenario. These two new
+  public scenarios provide a development replication only, not an untouched
+  model-selection test.
+- Lower loss in all three days is promising but severe comfort observations
+  increased in both Denver scenarios, and the most extreme global jumps
+  remained unchanged on Denver Building 4.
+- Do not promote this cap until a full 8,640-step paired evaluation, diverse
+  climate/building transfer tests, and reward-component/comfort-tail analysis.
+- Shared hot-water supply and closed-loop policy feedback mean VAV_1's command
+  cap is the controlled intervention, while other delivered physical
+  quantities may also change.
