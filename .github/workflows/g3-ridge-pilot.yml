@@ -5,14 +5,20 @@ on:
     branches: ["feat/thermal-ridge-baseline"]
     paths:
       - "smart_buildings/experiments/thermal_ridge.py"
+      - "smart_buildings/experiments/thermal_shocks.py"
       - "scripts/fit_thermal_ridge.py"
+      - "scripts/inspect_thermal_shocks.py"
       - "tests/test_thermal_ridge.py"
+      - "tests/test_thermal_shocks.py"
       - ".github/workflows/g3-ridge-pilot.yml"
   pull_request:
     paths:
       - "smart_buildings/experiments/thermal_ridge.py"
+      - "smart_buildings/experiments/thermal_shocks.py"
       - "scripts/fit_thermal_ridge.py"
+      - "scripts/inspect_thermal_shocks.py"
       - "tests/test_thermal_ridge.py"
+      - "tests/test_thermal_shocks.py"
       - ".github/workflows/g3-ridge-pilot.yml"
   workflow_dispatch:
 
@@ -29,7 +35,7 @@ jobs:
       - name: Install simulator and pytest
         run: python -m pip install -e . pytest
       - name: Run synthetic physics and leakage tests
-        run: python -m pytest -q tests/test_thermal_ridge.py tests/test_thermal_records.py tests/test_thermal_splits.py
+        run: python -m pytest -q tests/test_thermal_ridge.py tests/test_thermal_shocks.py tests/test_thermal_records.py tests/test_thermal_splits.py
       - name: Collect 288-step training trajectory from public building 1
         run: |
           python -m scripts.profile_control \
@@ -48,6 +54,12 @@ jobs:
             --building building_train_2 --weather atlanta_3 \
             --policies pid_water --steps 288 --record-transitions \
             --results-dir smart_buildings/results/g3_pilot
+      - name: Diagnose extreme zone-temperature transitions on Denver
+        run: |
+          python -m scripts.inspect_thermal_shocks \
+            smart_buildings/results/g3_pilot/building_train_2/denver_8/pid_water/transitions.jsonl.gz \
+            --top 8 \
+            --output smart_buildings/results/g3_pilot/denver_shock_diagnostics.json
       - name: Train on building 1 and evaluate building 2 in both climates
         run: |
           python -m scripts.fit_thermal_ridge \
