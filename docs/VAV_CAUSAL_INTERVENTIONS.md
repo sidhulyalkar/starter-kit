@@ -80,3 +80,46 @@ design change. If reheat caps help, study proportional/deadband/hysteresis
 variants and AHU interactions; if not, investigate thermal source gradients,
 convection/solver timing and zone-level feedback oscillations. Never tune
 to the exact first 288-step Denver trace then report it as a held-out test.
+
+## First measured six-arm result (2026-10-29)
+
+[Successful 288-step official-simulator study](https://github.com/sidhulyalkar/starter-kit/actions/runs/40975190756);
+[downloadable raw result artifacts](https://github.com/sidhulyalkar/starter-kit/actions/runs/40975190756/artifacts/12942397397).
+
+**Scope:** ONE public scenario, building_train_2/denver_8, 288 steps.
+The 100% sham reproduced the reference *exactly* in temperature trace and
+total reward. Every real cap was exercised on >=123 steps.
+
+| Intervention | Native reheat/damper max | Target VAV shocks >=2 K | All zone shocks >=5 K | Loss relative to reference | Additional all-zone severe comfort-step observations |
+| --- | --- | ---: | ---: | ---: | ---: |
+| PID-water | 100% / 100% | 44 | 22 | reference | 0 |
+| Sham | 100% / 100% | 44 | 22 | 0% | 0 |
+| Reheat 75% | 75% / 100% | 26 | 20 | **+1.29% worse** | +6 |
+| Reheat 50% | 50% / 100% | 29 | 10 | **-4.17% better** | +17 |
+| Damper 75% | 100% / 75% | 33 | 22 | **-2.52% better** | +3 |
+| Both 75% | 75% / 75% | 29 | 22 | **-3.21% better** | +3 |
+
+Reference loss 0.00391968 per step; reheat-50 loss 0.00375629.
+Reheat-50 reduced maximum observed 5-minute absolute VAV_1 jump
+from 7.1265 K to 4.2498 K, and all-zone >=2 K jumps from 199 to 171.
+It increased the unweighted >=2 K outside-sensor-setpoint comfort
+count from approximately 885 to 902 (17 more of 24,480 zone-steps),
+not a verified safety improvement.
+
+### Causal interpretation and important coupling caveat
+
+This **is** a within-simulator controlled intervention: starting conditions
+and inputs are matched, and changing VAV_1 actuator commands produces a
+different closed-loop trajectory. It is **not randomized**, and not a study
+of actual buildings. The shared hot-water system allocates water and heating
+demand across VAV coils, so even immediately after a local reheat cap other
+VAV heating effectiveness may change. Later global policy actions also react
+to altered zone states. Do not claim that only VAV_1's *physical* heat flux
+changed, merely that only its *command* was directly modified.
+
+**Negative findings matter:** a gentler 75% reheat cap reduced target shock
+count further but made the total reward worse, while the 50% cap improved the
+short-run reward but increased severe comfort-step observations.
+Neither cap is qualified for general use. A targeted follow-up on other cold
+buildings should be performed with the reheat-50 treatment frozen in advance,
+and a longer full-horizon comparison should follow if it remains promising.
