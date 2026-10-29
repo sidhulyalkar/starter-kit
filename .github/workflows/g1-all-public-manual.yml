@@ -1,0 +1,72 @@
+name: G1 all 30 public paired episodes (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-full-shards:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        building:
+          - building_train_1
+          - building_train_2
+          - building_train_4
+          - building_train_5
+          - building_train_7
+          - building_train_8
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install simulator
+        run: python -m pip install -e .
+      - name: Five real 8640-step scenarios per building and both policies
+        run: |
+          python -m scripts.run_public_matrix \
+            --building ${{ matrix.building }} \
+            --policies pid_water adaptive \
+            --steps 8640 \
+            --results-dir smart_buildings/results/g1_public_full
+      - name: Upload per-building evidence, even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g1-full-${{ matrix.building }}
+          path: smart_buildings/results/g1_public_full/
+          if-no-files-found: warn
+          retention-days: 14
+
+  complete-public-comparison:
+    needs: public-full-shards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: g1-full-*
+          merge-multiple: true
+          path: smart_buildings/results/g1_public_full/
+      - name: Reject incomplete or short-horizon comparisons
+        run: |
+          python -m scripts.compare_adaptive \
+            smart_buildings/results/g1_public_full \
+            --candidate adaptive --reference pid_water \
+            --expect 30 --steps 8640 \
+            --csv smart_buildings/results/g1_public_full/full_comparison.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: g1-public-30-scenario-comparison
+          path: smart_buildings/results/g1_public_full/full_comparison.csv
+          retention-days: 14
