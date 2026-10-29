@@ -93,6 +93,11 @@ def _report(name,loss=0.1,modified=0,shock=10,comfort=3):
             "all_zone_comfort_excursions_ge_2_kelvin":comfort,
             "all_zone_comfort_excursion_rate":0.15,
             "max_absolute_delta_kelvin":2.0,
+            "reward_component_sums":{
+                "normalized_productivity_regret":0.2,
+                "normalized_energy_cost":0.3,
+                "normalized_carbon_emission":0.4,
+            },
         }
     }
 
@@ -108,6 +113,8 @@ def test_sham_matches_and_treatment_evaluated():
     treatment=next(x for x in result["arms"] if x["arm"]=="vav1_reheat50")
     assert treatment["relative_loss_change_pct"]==pytest.approx(-10)
     assert treatment["target_zone_shock_difference"] == -6
+    assert treatment["reward_component_totals"]["normalized_energy_cost"] == pytest.approx(0.3)
+    assert treatment["reward_component_differences"]["normalized_energy_cost"] == pytest.approx(0.0)
 
 
 def test_sham_divergence_fails_closed():
