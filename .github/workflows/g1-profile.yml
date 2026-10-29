@@ -1,0 +1,42 @@
+name: G1 measured 288-step profile
+
+on:
+  push:
+    branches: ["feat/adaptive-pid-qualification"]
+    paths:
+      - "scripts/profile_control.py"
+      - ".github/workflows/g1-profile.yml"
+  workflow_dispatch:
+
+jobs:
+  profile-public-scenario:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install simulator
+        run: python -m pip install -e .
+      - name: Measure simulation and policy compute, one public 24-hour scenario
+        run: |
+          python -m scripts.profile_control \
+            --building building_train_1 --weather atlanta_2 \
+            --policies pid_water adaptive --steps 288 \
+            --results-dir smart_buildings/results/g1_profile
+      - name: Compare matched 288-step diagnostic rollouts
+        run: |
+          python -m scripts.compare_adaptive smart_buildings/results/g1_profile \
+            --candidate adaptive --reference pid_water \
+            --expect 1 --steps 288 \
+            --csv smart_buildings/results/g1_profile/comparison.csv
+      - name: Archive profiling evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g1-288-step-profile
+          path: smart_buildings/results/g1_profile/
+          if-no-files-found: warn
+          retention-days: 14
