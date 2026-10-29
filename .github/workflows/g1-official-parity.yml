@@ -1,0 +1,39 @@
+name: G1 profiler vs official evaluator parity
+
+on:
+  push:
+    branches: ["feat/adaptive-pid-qualification"]
+    paths:
+      - "scripts/check_official_parity.py"
+      - "tests/test_official_parity.py"
+      - ".github/workflows/g1-official-parity.yml"
+  workflow_dispatch:
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install official evaluator and tests
+        run: python -m pip install -e . pytest
+      - name: Test fail-closed parity comparator
+        run: python -m pytest -q tests/test_official_parity.py
+      - name: Compare actual PID-water 288-step scores against official evaluator
+        run: |
+          python -m scripts.check_official_parity \
+            --building building_train_1 --weather atlanta_2 \
+            --policy pid_water --steps 288 \
+            --results-dir smart_buildings/results/g1_runner_parity
+      - name: Save parity report and official artifacts, even if mismatch
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g1-official-fast-parity
+          path: smart_buildings/results/g1_runner_parity/
+          if-no-files-found: warn
+          retention-days: 14
