@@ -77,3 +77,37 @@ This is a public pilot only, not procedural holdout or private competition score
 An apparently promising average cannot mask larger squared errors. Do not
 reuse these public results for unconstrained hyperparameter selection and
 then describe them as an untouched held-out test.
+
+## Dual-climate pilot and failure analysis (2026-10-29)
+
+[Successful extended CI run](https://github.com/sidhulyalkar/starter-kit/actions/runs/40835421440)
+used the **same fixed** ridge model trained on building_train_1/atlanta_2
+to evaluate 288 steps of building_train_2 under two weather strips.
+The second test climate was added without changing the trained model or alpha.
+
+| Building 2 weather | Persistence MAE K | Ridge MAE K | Persistence RMSE K | Ridge RMSE K | Zones with worse ridge RMSE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Denver 8 | 0.081449 | 0.077230 | 0.364757 | 0.365204 | 51/85 |
+| Atlanta 3 | 0.006239 | 0.004490 | 0.009344 | 0.008302 | 12/85 |
+
+Across both strips (48,960 zone-step forecasts), mean MAE is 0.043844 K
+for persistence and 0.040860 K for ridge (6.81% lower), while RMSE goes
+from 0.258007 K to 0.258305 K (slightly **worse**).
+
+The cold Denver strip exhibits one-step prediction errors of **up to 7.15 K**
+for the ridge and 7.12 K for persistence; these large errors dominate
+squared-error metrics despite average improvements. The typical Atlanta
+zone is much easier than the Denver extreme. This suggests the next
+research target is **regime-shift/tail diagnostics and data diversity**, not
+simply increasing model capacity.
+
+We do NOT yet know whether the 7 K transitions are legitimate physical
+dynamics, occupancy/setpoint discontinuities, or a simulator/recording issue.
+Inspect original per-step observations and zone actions to determine the
+mechanism before selecting a model. A future model should report
+per-climate and worst-zone RMSE and worst 1% absolute errors separately.
+
+**Decision:** G3 stays experimental. No GNN, no MPC integration and no
+retrained hyperparameters optimized against these two public validation
+strips. Next train on more building/climate diversity and test on a
+predeclared generated-building split.
