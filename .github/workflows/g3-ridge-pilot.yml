@@ -1,0 +1,59 @@
+name: G3 cross-building thermal ridge pilot
+
+on:
+  push:
+    branches: ["feat/thermal-ridge-baseline"]
+    paths:
+      - "smart_buildings/experiments/thermal_ridge.py"
+      - "scripts/fit_thermal_ridge.py"
+      - "tests/test_thermal_ridge.py"
+      - ".github/workflows/g3-ridge-pilot.yml"
+  pull_request:
+    paths:
+      - "smart_buildings/experiments/thermal_ridge.py"
+      - "scripts/fit_thermal_ridge.py"
+      - "tests/test_thermal_ridge.py"
+      - ".github/workflows/g3-ridge-pilot.yml"
+  workflow_dispatch:
+
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install simulator and pytest
+        run: python -m pip install -e . pytest
+      - name: Run synthetic physics and leakage tests
+        run: python -m pytest -q tests/test_thermal_ridge.py tests/test_thermal_records.py tests/test_thermal_splits.py
+      - name: Collect 288-step training trajectory from public building 1
+        run: |
+          python -m scripts.profile_control \
+            --building building_train_1 --weather atlanta_2 \
+            --policies pid_water --steps 288 --record-transitions \
+            --results-dir smart_buildings/results/g3_pilot
+      - name: Collect independent public building 2 trajectory
+        run: |
+          python -m scripts.profile_control \
+            --building building_train_2 --weather denver_8 \
+            --policies pid_water --steps 288 --record-transitions \
+            --results-dir smart_buildings/results/g3_pilot
+      - name: Train only on building 1 and evaluate only on building 2
+        run: |
+          python -m scripts.fit_thermal_ridge \
+            --train smart_buildings/results/g3_pilot/building_train_1/atlanta_2/pid_water/transitions.jsonl.gz \
+            --eval smart_buildings/results/g3_pilot/building_train_2/denver_8/pid_water/transitions.jsonl.gz \
+            --alpha 100 \
+            --output smart_buildings/results/g3_pilot/cross_building_ridge.json
+      - name: Archive models and baselines pilot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g3-cross-building-public-ridge-pilot
+          path: smart_buildings/results/g3_pilot/
+          if-no-files-found: warn
+          retention-days: 14
