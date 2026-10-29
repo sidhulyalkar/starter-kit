@@ -1,0 +1,35 @@
+name: G1 identical-policy replay audit
+
+on:
+  push:
+    branches: ["feat/adaptive-pid-qualification"]
+    paths:
+      - "scripts/check_replay_determinism.py"
+      - ".github/workflows/g1-determinism.yml"
+  workflow_dispatch:
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install official simulator
+        run: python -m pip install -e .
+      - name: Replay same PID-water scenario twice, with two new simulator instances
+        run: |
+          python -m scripts.check_replay_determinism \
+            --building building_train_1 --weather atlanta_2 \
+            --policy pid_water --steps 288 \
+            --results-dir smart_buildings/results/g1_replay
+      - name: Save both independent traces and comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g1-independent-pid-water-replay
+          path: smart_buildings/results/g1_replay/
+          retention-days: 14
