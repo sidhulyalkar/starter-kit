@@ -1,0 +1,41 @@
+name: G2 one-day thermal persistence baseline
+
+on:
+  push:
+    branches: ["feat/thermal-transition-dataset"]
+    paths:
+      - ".github/workflows/g2-one-day-persistence.yml"
+  workflow_dispatch:
+
+jobs:
+  collect-one-day:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install simulator
+        run: python -m pip install -e .
+      - name: Capture 288 real transitions using unmodified PID-water
+        run: |
+          python -m scripts.profile_control \
+            --building building_train_1 --weather atlanta_2 \
+            --policies pid_water --steps 288 --record-transitions \
+            --results-dir smart_buildings/results/g2_288
+      - name: Score persistence at 5, 15 and 60 minute horizons
+        run: |
+          python -m scripts.evaluate_persistence \
+            smart_buildings/results/g2_288/building_train_1/atlanta_2/pid_water/transitions.jsonl.gz \
+            --horizons 1 3 12 \
+            --out smart_buildings/results/g2_288/persistence_baseline.json
+      - name: Save dataset and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g2-one-day-persistence-and-transitions
+          path: smart_buildings/results/g2_288/
+          retention-days: 14
+          if-no-files-found: warn
