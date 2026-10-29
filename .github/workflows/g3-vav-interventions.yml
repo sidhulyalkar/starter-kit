@@ -1,0 +1,67 @@
+name: G3 local VAV counterfactual study
+
+on:
+  push:
+    branches: ["feat/g3-vav-intervention-study"]
+    paths:
+      - ".github/workflows/g3-vav-interventions.yml"
+      - "smart_buildings/experiments/vav_interventions.py"
+      - "scripts/run_vav_interventions.py"
+      - "scripts/diagnose_zone_physics.py"
+      - "tests/test_vav_interventions.py"
+  pull_request:
+    paths:
+      - ".github/workflows/g3-vav-interventions.yml"
+      - "smart_buildings/experiments/vav_interventions.py"
+      - "scripts/run_vav_interventions.py"
+      - "scripts/diagnose_zone_physics.py"
+      - "tests/test_vav_interventions.py"
+  workflow_dispatch:
+
+jobs:
+  local-counterfactual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install official simulation and tests
+        run: python -m pip install -e . pytest
+      - name: Verify normalized cap isolation and sham checks
+        run: |
+          python -m pytest -q \
+            tests/test_vav_interventions.py \
+            tests/test_zone_physics_report.py \
+            tests/test_thermal_recursive.py
+      - name: Conduct independent matched 288-step VAV 1 policy interventions
+        run: |
+          python -m scripts.run_vav_interventions \
+            --building building_train_2 --weather denver_8 \
+            --zone VAV_1 --steps 288 --threshold-k 2 \
+            --results-dir smart_buildings/results/g3_vav_counterfactual
+      - name: Validate all arm results are paired, complete and sham unchanged
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("smart_buildings/results/g3_vav_counterfactual/paired_interventions.json")
+          d=json.loads(p.read_text())
+          assert d["sham_reproduces_reference"] is True
+          assert len(d["arms"]) == 6
+          assert set(a["total_steps"] for a in d["arms"]) == {288}
+          assert all(a["modified_action_steps"] > 0
+                     for a in d["arms"]
+                     if a["arm"] not in ("pid_water","vav1_sham"))
+          print("Verified sham, 6 matched arms, all 288-step horizons, active caps")
+          PY
+      - name: Archive complete evidence even when the study fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g3-vav1-controlled-interventions
+          path: smart_buildings/results/g3_vav_counterfactual/
+          if-no-files-found: warn
+          retention-days: 14
