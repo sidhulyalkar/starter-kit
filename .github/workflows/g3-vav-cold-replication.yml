@@ -1,0 +1,58 @@
+name: G3 VAV cap cross-building cold-climate replication
+
+on:
+  push:
+    branches: ["feat/g3-vav-intervention-study"]
+    paths:
+      - ".github/workflows/g3-vav-cold-replication.yml"
+  workflow_dispatch:
+
+jobs:
+  preselected-reheat50:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - building: building_train_1
+            weather: fairbanks_1
+          - building: building_train_4
+            weather: denver_2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install simulator
+        run: python -m pip install -e .
+      - name: Fixed 50% reheat cap vs PID-water plus no-change sham
+        run: |
+          python -m scripts.run_vav_interventions \
+            --building ${{ matrix.building }} \
+            --weather ${{ matrix.weather }} \
+            --zone VAV_1 --steps 288 --threshold-k 2 \
+            --arms pid_water vav1_sham vav1_reheat50 \
+            --results-dir smart_buildings/results/g3_vav_cold_replication
+      - name: Verify precommitted treatment and controls
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("smart_buildings/results/g3_vav_cold_replication/paired_interventions.json")
+          d=json.loads(p.read_text())
+          assert d["sham_reproduces_reference"] is True
+          assert len(d["arms"]) == 3
+          assert all(a["total_steps"] == 288 for a in d["arms"])
+          print(json.dumps(d, indent=2))
+          PY
+      - name: Archive negative as well as positive results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g3-vav50-${{ matrix.building }}-${{ matrix.weather }}
+          path: smart_buildings/results/g3_vav_cold_replication/
+          if-no-files-found: warn
+          retention-days: 14
