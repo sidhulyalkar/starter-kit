@@ -6,8 +6,10 @@ on:
       - "smart_buildings/experiments/**"
       - "scripts/run_adaptive_experiments.py"
       - "scripts/compare_adaptive.py"
+      - "scripts/run_public_matrix.py"
       - "tests/test_adaptive_*.py"
       - "tests/test_compare_adaptive.py"
+      - "tests/test_public_matrix.py"
       - ".github/workflows/adaptive-qualification.yml"
   push:
     branches:
@@ -16,8 +18,10 @@ on:
       - "smart_buildings/experiments/**"
       - "scripts/run_adaptive_experiments.py"
       - "scripts/compare_adaptive.py"
+      - "scripts/run_public_matrix.py"
       - "tests/test_adaptive_*.py"
       - "tests/test_compare_adaptive.py"
+      - "tests/test_public_matrix.py"
       - ".github/workflows/adaptive-qualification.yml"
   workflow_dispatch:
 
@@ -34,7 +38,7 @@ jobs:
       - name: Install competition simulator and tests
         run: python -m pip install -e . pytest
       - name: Test control math and benchmarking
-        run: python -m pytest -q tests/test_adaptive_core.py tests/test_compare_adaptive.py
+        run: python -m pytest -q tests/test_adaptive_core.py tests/test_compare_adaptive.py tests/test_public_matrix.py
       - name: Real simulator action-contract tests
         run: python -m pytest -q tests/test_adaptive_integration.py
       - name: Actual evaluator integration smoke (not comparable with published score)
