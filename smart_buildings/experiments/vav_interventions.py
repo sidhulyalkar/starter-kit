@@ -93,14 +93,22 @@ def intervention_policy_class(
         def __init__(self, building_meta_data, action_spec):
             super().__init__(building_meta_data, action_spec)
             self._limits = limits
+            self.intervention_modified_steps = 0
             target = building_meta_data["zone_action_indices"].get(limits.vav_id)
             if not target or not {"supply_air_damper_percentage_command",
                                   "reheat_valve_percentage_command"}.issubset(target):
                 raise ValueError("Missing intervention VAV device/actions")
 
+        def reset(self):
+            super().reset()
+            self.intervention_modified_steps = 0
+
         def get_action(self, obs):
             result = super().get_action(obs)
-            return cap_vav_command(result, self.metadata, self._limits)
+            capped = cap_vav_command(result, self.metadata, self._limits)
+            if np.any(capped["continuous_action"] != result["continuous_action"]):
+                self.intervention_modified_steps += 1
+            return capped
 
     LocalVAVTreatment.__name__ = "LocalVAVTreatment_" + name
     return LocalVAVTreatment
