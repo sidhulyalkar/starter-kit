@@ -256,6 +256,8 @@ def metrics(truth: np.ndarray, predicted: np.ndarray) -> dict:
         "rmse_kelvin": float(np.sqrt(np.mean(err ** 2))),
         "bias_kelvin": float(np.mean(err)),
         "p95_abs_kelvin": float(np.quantile(np.abs(err), 0.95)),
+        "p99_abs_kelvin": float(np.quantile(np.abs(err), 0.99)),
+        "max_abs_kelvin": float(np.max(np.abs(err))),
     }
 
 
@@ -287,10 +289,31 @@ def cross_building_evaluate(train_archives: list[Path],
         forecast = model.predict(x, baseline)
         p0 = metrics(target, baseline)
         p1 = metrics(target, forecast)
+        zones = ZoneFeatureMap.from_manifest(manifest).zone_names
+        n_zone = len(zones)
+        if len(target) % n_zone:
+            raise ValueError("Zone record alignment mismatch")
+        zone_reports = []
+        for zone_i, zone_name in enumerate(zones):
+            truth = target[zone_i::n_zone]
+            base = baseline[zone_i::n_zone]
+            estimate = forecast[zone_i::n_zone]
+            zone_reports.append({
+                "zone": zone_name,
+                "persistence": metrics(truth, base),
+                "ridge": metrics(truth, estimate),
+            })
+        zone_reports.sort(key=lambda z: z["ridge"]["rmse_kelvin"],
+                          reverse=True)
         details.append({
             "scenario": manifest["provenance"]["scenario"],
             "reference_persistence": p0,
             "ridge": p1,
+            "worst_10_zones_by_ridge_rmse": zone_reports[:10],
+            "zones_with_ridge_rmse_worse_than_persistence": sum(
+                z["ridge"]["rmse_kelvin"] > z["persistence"]["rmse_kelvin"]
+                for z in zone_reports),
+            "zone_count": n_zone,
         })
     forecast_all = np.concatenate([
         model.predict(x, baseline) for _, x, baseline, target in evaluation_loaded
