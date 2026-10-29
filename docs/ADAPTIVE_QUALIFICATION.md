@@ -9,11 +9,11 @@ remains unchanged. Research design: docs/PROJECT_STRATEGY.md in PR #1.
 
 From your fork's working tree, with Python 3.12:
 
-\`\`\`bash
+```bash
 python -m pip install -e . pytest
 python -m pytest -q tests/test_adaptive_core.py tests/test_compare_adaptive.py
 python -m pytest -q tests/test_adaptive_integration.py
-\`\`\`
+```
 
 The integration tests load the **real** official simulator. No mock environment
 is substituted. A successfully completed test establishes action validity, not
@@ -21,27 +21,27 @@ long-term comfort or energy performance.
 
 ## G0: Reproduce the published baseline first
 
-\`\`\`bash
+```bash
 python -m smart_buildings.evaluate --policies pid_water \
   --results-dir smart_buildings/results/g0_reference --steps 8640
 python score_leaderboard.py smart_buildings/results/g0_reference \
   --policy pid_water --expect 30
-\`\`\`
+```
 
-The published \`pid_water\` score is about **0.0541413**. That number comes
-from the shipped \`baseline_returns.json\`, not from a run of this branch.
+The published `pid_water` score is about **0.0541413**. That number comes
+from the shipped `baseline_returns.json`, not from a run of this branch.
 Inspect per-scenario returns and reward component columns if a replay differs.
 
 ## G1: Fast closed-loop smoke tests
 
-\`\`\`bash
+```bash
 python -m scripts.run_adaptive_experiments \
   --policies pid_water adaptive_sensor adaptive_outlier adaptive_forecast adaptive \
   --buildings building_train_1 --weathers atlanta_2 \
   --steps 288 --results-dir smart_buildings/results/g1_smoke
 python -m scripts.compare_adaptive smart_buildings/results/g1_smoke \
   --candidate adaptive --reference pid_water --expect 1 --steps 288
-\`\`\`
+```
 
 **Never** compare these 288-step episode scores against 8,640-step
 published reference returns. A short episode misses many occupied and
@@ -52,7 +52,7 @@ eco-setback cycles, so results are solely diagnostic.
 Start with paired **reference and candidate** on the official set, before
 running every ablation to manage CPU cost:
 
-\`\`\`bash
+```bash
 python -m scripts.run_adaptive_experiments \
   --policies pid_water adaptive --steps 8640 \
   --results-dir smart_buildings/results/g1_public
@@ -61,7 +61,7 @@ python -m scripts.compare_adaptive smart_buildings/results/g1_public \
   --csv smart_buildings/results/g1_public/paired.csv
 python score_leaderboard.py smart_buildings/results/g1_public \
   --policy adaptive --expect 30
-\`\`\`
+```
 
 The comparator refuses absent policies, incomplete paired coverage, unequal
 episode horizons, nonnumeric or nonfinite reward, and positive rewards.
@@ -87,7 +87,7 @@ where available and label the distinction transparently.
 
 Example generation commands (exercise on a small validation sample first):
 
-\`\`\`bash
+```bash
 python -m smart_buildings.run_floor_generator --start-seed 400 --count 2
 python -m smart_buildings.run_scenario_generator \
   --buildings building_0400 building_0401 \
@@ -99,7 +99,7 @@ python -m scripts.run_adaptive_experiments \
   --results-dir smart_buildings/results/g1_validation
 python -m scripts.compare_adaptive smart_buildings/results/g1_validation \
   --candidate adaptive --reference pid_water --expect 4 --steps 8640
-\`\`\`
+```
 
 Check generator semantics before running large cross-products: a bigger building
 with more AHUs increases simulator cost.
@@ -124,7 +124,7 @@ validation improvement is not proof of safety or global superiority.
 
 ## Next G2: Data contract before fitting dynamics
 
-Collect aligned \`(observation_t, action_t, observation_t+1)\` transitions
+Collect aligned `(observation_t, action_t, observation_t+1)` transitions
 from multiple controllers. Label normalized vs native sensor values. Do not
 include next-observation values, future occupancy, generated scenario IDs,
 or reward internals in runtime policy features. Before any graph model, compare
