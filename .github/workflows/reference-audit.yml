@@ -1,0 +1,29 @@
+name: Reference audit
+
+on:
+  push:
+    paths:
+      - "baseline_returns.json"
+      - "scripts/audit_reference.py"
+      - "tests/test_reference_audit.py"
+      - ".github/workflows/reference-audit.yml"
+  pull_request:
+    paths:
+      - "baseline_returns.json"
+      - "scripts/audit_reference.py"
+      - "tests/test_reference_audit.py"
+      - ".github/workflows/reference-audit.yml"
+  workflow_dispatch:
+
+jobs:
+  published-baseline-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate pure baseline-audit logic
+        run: python -m unittest discover -s tests -p 'test_reference_audit.py' -v
+      - name: Audit the 30 published reference scenarios
+        run: python scripts/audit_reference.py --expect 30
