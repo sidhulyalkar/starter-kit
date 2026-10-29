@@ -38,3 +38,31 @@ calculation, not an observed 30-scenario benchmark.
 - [ ] Reward-component and severe-discomfort diagnostics before promotion.
 
 Do not declare a winning controller or tune gains on a single short trajectory.
+
+## Full 8,640-step public scenario result
+
+[Successful 30-day full-horizon workflow](https://github.com/sidhulyalkar/starter-kit/actions/runs/40824822807):
+
+- building_train_1/atlanta_2, PID-water mean loss: 0.02490677.
+- Same scenario, combined adaptive mean loss: 0.01605735.
+- Paired 8,640-step improvement: **35.53% lower loss**.
+- Recorded policy p95 latency: 0.576 ms reference, 1.332 ms adaptive.
+- Do NOT claim transfer on one known public scenario.
+
+**Reproducibility caveat:** the committed published baseline_returns.json
+lists PID-water reward -208.20547 (loss 0.02409786) on this exact scenario,
+whereas our profile measured -215.19453 (loss 0.02490677), **3.36% higher**.
+Investigate version, configuration and simulator conditions before claiming
+exact published-reference reproduction. Both members of our paired local test
+were run using the same current code revision and scenario.
+
+## Same-policy replay check
+
+[Two independent PID-water 288-step runs](https://github.com/sidhulyalkar/starter-kit/actions/runs/40835233468)
+produced exactly the same total reward: -0.008113133068036404 in each run,
+absolute difference 0. This supports short-horizon determinism on this
+configuration but does not prove full-month reproducibility across hosts,
+versions, or seeds.
+
+Next: full 30-scenario matched paired evaluation and failure-preserving tail
+metrics. Do not tune the controller to this one successful public scenario.
