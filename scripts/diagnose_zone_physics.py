@@ -65,6 +65,26 @@ def energy_budget_report(records: list[dict], threshold_k: float = 2.0) -> dict:
     }
 
 
+REWARD_COMPONENT_FIELDS = (
+    "normalized_productivity_regret",
+    "normalized_energy_cost",
+    "normalized_carbon_emission",
+)
+
+
+def sum_reward_components(records: list[dict], steps: int) -> dict[str, float]:
+    """Preserve original official reward units and signs, no reweighting."""
+    if len(records) != steps or steps <= 0:
+        raise ValueError("Incomplete reward component history")
+    output = {}
+    for key in REWARD_COMPONENT_FIELDS:
+        if any(key not in item for item in records):
+            raise ValueError(f"Missing official reward component: {key}")
+        values = [_finite(item[key], key) for item in records]
+        output[key] = float(sum(values))
+    return output
+
+
 def diagnose(building: str, weather: str, zone: str, policy_name: str,
              steps: int, threshold_k: float, output_root: Path) -> dict:
     if steps < 1 or policy_name not in POLICY_MAP or threshold_k <= 0:
@@ -183,7 +203,11 @@ def diagnose(building: str, weather: str, zone: str, policy_name: str,
     summary = energy_budget_report(out, threshold_k)
     if len(tracker.rewards) != len(out):
         raise RuntimeError("Reward steps out of sync with physics trace")
+    reward_component_sums = sum_reward_components(
+        tracker.reward_components, len(out)
+    )
     summary.update({
+        "reward_component_sums": reward_component_sums,
         "intervention_modified_steps": int(getattr(policy, "intervention_modified_steps", 0)),
         "total_reward": float(np.sum(tracker.rewards)),
         "loss_per_step": abs(float(np.sum(tracker.rewards)))/len(out),
