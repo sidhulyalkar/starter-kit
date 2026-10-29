@@ -41,10 +41,8 @@ class AuditTests(unittest.TestCase):
     def test_duplicate_station_fails(self):
         d = fixture()
         record = d.pop("building_train_1/atlanta_1")
-        d["building_train_1/atlanta_9"] = record
-        # Still one Atlanta, so this is legal; now introduce another Atlanta
-        d["building_train_1/denver_1"] = d.pop("building_train_1/atlanta_9")
-        # Restore Atlanta, which duplicates the Denver station? instead assert missing station
+        # Two Denver strips for the same building; Atlanta is now absent.
+        d["building_train_1/denver_9"] = record
         with self.assertRaises(ValueError):
             audit_reference(d)
 
