@@ -45,5 +45,5 @@ def test_episode_lengths_not_comparable(tmp_path, steps):
 def test_bad_rewards_are_rejected(tmp_path, reward):
     _write(tmp_path, "building_1", "atlanta_1", "adaptive", reward)
     _write(tmp_path, "building_1", "atlanta_1", "pid_water", -20)
-    with pytest.raises(ValueError, match="(invalid|nonnumeric) reward"):
+    with pytest.raises(ValueError, match="(invalid reward|nonnumeric total_reward)"):
         compare(tmp_path, expected=1)
