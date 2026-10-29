@@ -7,16 +7,20 @@ on:
       - "smart_buildings/experiments/thermal_records.py"
       - "smart_buildings/experiments/thermal_splits.py"
       - "scripts/profile_control.py"
+      - "scripts/evaluate_persistence.py"
       - "tests/test_thermal_records.py"
       - "tests/test_thermal_splits.py"
+      - "tests/test_persistence.py"
       - ".github/workflows/g2-transition-records.yml"
   pull_request:
     paths:
       - "smart_buildings/experiments/thermal_records.py"
       - "smart_buildings/experiments/thermal_splits.py"
       - "scripts/profile_control.py"
+      - "scripts/evaluate_persistence.py"
       - "tests/test_thermal_records.py"
       - "tests/test_thermal_splits.py"
+      - "tests/test_persistence.py"
       - ".github/workflows/g2-transition-records.yml"
   workflow_dispatch:
 
@@ -33,7 +37,7 @@ jobs:
       - name: Install simulator and tests
         run: python -m pip install -e . pytest
       - name: Thermal record schema, integrity and leakage tests
-        run: python -m pytest -q tests/test_thermal_records.py tests/test_thermal_splits.py
+        run: python -m pytest -q tests/test_thermal_records.py tests/test_thermal_splits.py tests/test_persistence.py
       - name: Capture actual simulator transitions (diagnostic dataset only)
         run: |
           python -m scripts.profile_control \
