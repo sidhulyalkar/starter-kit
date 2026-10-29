@@ -84,6 +84,17 @@ def diagnose(building: str, weather: str, zone: str, policy_name: str,
     if sensor_name not in names:
         raise ValueError(f"Unknown zone sensor: {sensor_name}")
     sensor_idx = names.index(sensor_name)
+    all_zone_indices = [i for i, name in enumerate(names)
+                        if name.endswith("_zone_air_temperature_sensor")]
+    if not all_zone_indices:
+        raise ValueError("No observable zone temperatures")
+    sensor_band_indices = []
+    for i in all_zone_indices:
+        vav_name = names[i].removesuffix("_zone_air_temperature_sensor")
+        lo_name = vav_name + "_zone_air_heating_temperature_setpoint_sensor"
+        hi_name = vav_name + "_zone_air_cooling_temperature_setpoint_sensor"
+        if lo_name in names and hi_name in names:
+            sensor_band_indices.append((i, names.index(lo_name), names.index(hi_name)))
     n = meta["observation_normalization_metadata"]["zone_air_temperature_sensor"]
     temp_mean, temp_std = _finite(n["sample_mean"], "mean"), _finite(n["sample_std"], "std")
     sim = env.building.simulator
@@ -106,10 +117,29 @@ def diagnose(building: str, weather: str, zone: str, policy_name: str,
     tracker.reset()
     observations = tracker.last_obs
     out = []
+    full_zone_delta_ge2 = 0
+    full_zone_delta_ge5 = 0
+    full_zone_excursion_ge2 = 0
+    full_zone_excursion_samples = 0
     for step in range(steps):
+        before_vector = np.asarray(observations, dtype=float)
         before = _finite(observations[sensor_idx]*temp_std+temp_mean, "temperature_t")
         cmd = validate_action(get_policy_action(policy, observations), env.action_spec())
         observations, _reward, terminated, truncated, _info = tracker.step(cmd)
+        after_vector = np.asarray(observations, dtype=float)
+        full_deltas = np.abs(
+            after_vector[all_zone_indices] - before_vector[all_zone_indices]
+        ) * temp_std
+        full_zone_delta_ge2 += int(np.sum(full_deltas >= 2))
+        full_zone_delta_ge5 += int(np.sum(full_deltas >= 5))
+        for temp_idx, lo_idx, hi_idx in sensor_band_indices:
+            temp = float(after_vector[temp_idx] * temp_std + temp_mean)
+            lo = float(after_vector[lo_idx])
+            hi = float(after_vector[hi_idx])
+            if not np.isfinite([temp, lo, hi]).all() or hi <= lo:
+                raise ValueError("Invalid measured zone comfort setpoint")
+            full_zone_excursion_samples += 1
+            full_zone_excursion_ge2 += int(temp < lo - 2 or temp > hi + 2)
         after = _finite(observations[sensor_idx]*temp_std+temp_mean, "temperature_tp1")
         ahu = vav.air_handler
         ahu_id = ahu.device_id()
@@ -151,6 +181,26 @@ def diagnose(building: str, weather: str, zone: str, policy_name: str,
         if terminated or truncated:
             break
     summary = energy_budget_report(out, threshold_k)
+    if len(tracker.rewards) != len(out):
+        raise RuntimeError("Reward steps out of sync with physics trace")
+    summary.update({
+        "total_reward": float(np.sum(tracker.rewards)),
+        "loss_per_step": abs(float(np.sum(tracker.rewards)))/len(out),
+        "all_zone_sensor_count": len(all_zone_indices),
+        "all_zone_transitions_ge_2_kelvin": full_zone_delta_ge2,
+        "all_zone_transitions_ge_5_kelvin": full_zone_delta_ge5,
+        "all_zone_comfort_observations": full_zone_excursion_samples,
+        "all_zone_comfort_excursions_ge_2_kelvin": full_zone_excursion_ge2,
+        "all_zone_comfort_excursion_rate": (
+            full_zone_excursion_ge2/full_zone_excursion_samples
+            if full_zone_excursion_samples else None
+        ),
+        "comfort_metric_scope": (
+            "Unweighted, observed end-step zone temperature outside its "
+            "individual sensor setpoint band by >=2K; NOT the official "
+            "occupancy-weighted productivity or comfort reward."
+        ),
+    })
     report = {
         "scenario": f"{building}/{weather}",
         "policy": policy_name,
