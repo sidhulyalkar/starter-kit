@@ -62,3 +62,59 @@ python -m scripts.evaluate_recursive_ridge \
 
 A GNN or MPC should be attempted only after these gates, with negative
 evidence preserved and clearly reported.
+
+## Verified run 2026-10-29: measured results (public pilot)
+
+[Successful Actions run](https://github.com/sidhulyalkar/starter-kit/actions/runs/40956495749)
+includes unit tests, the actual 288-step physics trace, independent public
+training/evaluation trajectories, and a frozen-context recursive report. See
+the Actions artifact g3-physics-and-recursive-evidence.
+
+### Denver VAV_1 physical response (official PID-water, 288 steps)
+
+- Room floor area **61.36 m²**; simulator room heat capacity **222,000.48 J/K**.
+- **44 of 288** time steps have >2 K *absolute* temperature change.
+- Step 198: **285.6333 → 292.7598 K**, observed **+7.1265 K**.
+- During this heating response, both realized VAV damper and reheat were
+  **100%**, with realized airflow **0.63246 m³/s**. AHU supply setpoint was
+  **295.27 K**, hot-water supply sensor **316.03 K**.
+- Simulator-reported thermal source for this room was **10,120.7 W**. A
+  *source-only* equivalent temperature increment is **13.68 K**, whereas the
+  observed change was **7.13 K**. This demonstrates why source power divided
+  by room heat capacity is NOT an exact timestep prediction: the solver
+  includes air coupling, diffusion, convection and losses. It does show
+  the event coincided with strong heating authority and a relatively small
+  effective room heat capacity.
+- Repeated swings at steps 210 and 221 also show max damper/reheat with
+  ~10 kW source input. **No definitive causal mechanism identified.**
+
+Only the offline audit can access source power and physical heat capacity.
+Do not use either privileged quantity as a model feature at inference.
+
+### Frozen-input recursive forecast (one public target building)
+
+Training: public building_train_1/atlanta_2, 288 steps, fixed ridge alpha=100.
+Evaluation: public building_train_2/denver_8, 288 steps and **24 anchor
+times** spaced 12 steps apart, 85 zones = **2,040 zone forecasts per horizon**.
+
+| Horizon | Persistence MAE K | Ridge MAE K | Persistence RMSE K | Ridge RMSE K |
+| --- | ---: | ---: | ---: | ---: |
+| 5 min | 0.067695 | **0.063567** | **0.345966** | 0.346966 |
+| 15 min | 0.127975 | **0.116970** | **0.482688** | 0.486264 |
+| 60 min | 0.236041 | **0.194646** | 0.424950 | **0.412049** |
+
+MAE improves **6.10% / 8.60% / 17.54%**, respectively. RMSE worsens
+at 5 and 15 minutes but improves at 60 minutes. Individual 15-minute
+errors exceed **8.86 K**; 60-minute max errors are about **5.00 K**,
+compared with 4.62 K for persistence. The tails remain an issue.
+
+**Interpretation:** We have observed some recursive signal beyond one step
+but have NOT demonstrated safe counterfactual model prediction. The
+forecast explicitly holds all exogenous state and actions constant while
+the recorded real controller may change them. Anchors and zones within
+one building are highly correlated, so do not treat 2,040 zone predictions
+as independent samples or compute naïve significance from them.
+
+**Decision:** keep the ridge model outside the controller. G3 is not
+qualified for MPC. Next prioritize data diversity, regime-specific
+failures, and a policy-feasible control rollout with uncertainty bounds.
