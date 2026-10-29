@@ -42,11 +42,18 @@ jobs:
             --building building_train_2 --weather denver_8 \
             --policies pid_water --steps 288 --record-transitions \
             --results-dir smart_buildings/results/g3_pilot
-      - name: Train only on building 1 and evaluate only on building 2
+      - name: Collect building 2 with Atlanta weather for controlled climate comparison
+        run: |
+          python -m scripts.profile_control \
+            --building building_train_2 --weather atlanta_3 \
+            --policies pid_water --steps 288 --record-transitions \
+            --results-dir smart_buildings/results/g3_pilot
+      - name: Train on building 1 and evaluate building 2 in both climates
         run: |
           python -m scripts.fit_thermal_ridge \
             --train smart_buildings/results/g3_pilot/building_train_1/atlanta_2/pid_water/transitions.jsonl.gz \
             --eval smart_buildings/results/g3_pilot/building_train_2/denver_8/pid_water/transitions.jsonl.gz \
+                   smart_buildings/results/g3_pilot/building_train_2/atlanta_3/pid_water/transitions.jsonl.gz \
             --alpha 100 \
             --output smart_buildings/results/g3_pilot/cross_building_ridge.json
       - name: Archive models and baselines pilot evidence
