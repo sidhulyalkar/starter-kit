@@ -12,6 +12,7 @@ Example:
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import hashlib
 import json
 import platform
@@ -33,6 +34,7 @@ from smart_buildings.evaluate import (
     validate_action,
 )
 from smart_buildings.smart_control.utils.scenario_generator import SimulationTracker
+from smart_buildings.experiments.thermal_records import TransitionWriter
 
 
 def _sha256(path: Path) -> str:
@@ -51,7 +53,7 @@ def _peak_rss_mb() -> float:
 
 
 def profile_one(config_dir: Path, policy_key: str, steps: int,
-                output_root: Path) -> dict:
+                output_root: Path, record_transitions: bool = False) -> dict:
     if steps <= 0:
         raise ValueError("steps must be positive")
     if policy_key not in POLICY_MAP:
@@ -75,29 +77,43 @@ def profile_one(config_dir: Path, policy_key: str, steps: int,
     policy_times: list[float] = []
     sim_times: list[float] = []
 
+    outdir = output_root / config_dir.parent.name / config_dir.name / policy_key
+    trace_path = outdir / "transitions.jsonl.gz"
+    provenance = {
+        "scenario": f"{config_dir.parent.name}/{config_dir.name}",
+        "policy": policy_key,
+        "scenario_config_sha256": _sha256(config_path),
+        "requested_steps": steps,
+        "python": platform.python_version(),
+    }
+    writer = (TransitionWriter(trace_path, metadata, provenance)
+              if record_transitions else nullcontext(None))
     start = time.perf_counter()
-    for _ in range(steps):
-        tick = time.perf_counter()
-        action = validate_action(get_policy_action(policy, obs),
-                                 env.action_spec())
-        if not np.all(np.isfinite(action["continuous_action"])):
-            raise ValueError("Nonfinite continuous action")
-        if np.any(np.abs(action["continuous_action"]) > 1.000001):
-            raise ValueError("Continuous action outside normalized limits")
-        if np.any((action["discrete_action"] != 0) &
-                  (action["discrete_action"] != 1)):
-            raise ValueError("Discrete actions are not binary")
-        action_done = time.perf_counter()
-        obs, _, terminated, truncated, _ = tracker.step(action)
-        done = time.perf_counter()
-        policy_times.append(action_done - tick)
-        sim_times.append(done - action_done)
-        if terminated or truncated:
-            break
+    with writer as recorder:
+        for t in range(steps):
+            prior_obs = np.asarray(obs).copy() if recorder is not None else None
+            tick = time.perf_counter()
+            action = validate_action(get_policy_action(policy, obs),
+                                     env.action_spec())
+            if not np.all(np.isfinite(action["continuous_action"])):
+                raise ValueError("Nonfinite continuous action")
+            if np.any(np.abs(action["continuous_action"]) > 1.000001):
+                raise ValueError("Continuous action outside normalized limits")
+            if np.any((action["discrete_action"] != 0) &
+                      (action["discrete_action"] != 1)):
+                raise ValueError("Discrete actions are not binary")
+            action_done = time.perf_counter()
+            obs, _, terminated, truncated, _ = tracker.step(action)
+            done = time.perf_counter()
+            policy_times.append(action_done - tick)
+            sim_times.append(done - action_done)
+            if recorder is not None:
+                recorder.write(t, prior_obs, action, obs, tracker.rewards[-1])
+            if terminated or truncated:
+                break
+        if len(tracker.rewards) != steps:
+            raise RuntimeError(f"Expected {steps} steps, got {len(tracker.rewards)}")
     wall_seconds = time.perf_counter() - start
-
-    if len(tracker.rewards) != steps:
-        raise RuntimeError(f"Expected {steps} steps, got {len(tracker.rewards)}")
     total_reward = float(np.sum(tracker.rewards))
     if not np.isfinite(total_reward) or total_reward > 1e-8:
         raise ValueError("Invalid total episode reward")
@@ -123,11 +139,11 @@ def profile_one(config_dir: Path, policy_key: str, steps: int,
         "discrete_action_dim": metadata["n_discrete_action"],
         "scenario_config_sha256": _sha256(config_path),
         "python": platform.python_version(),
+        "transition_archive": str(trace_path) if record_transitions else None,
         "note": ("Smoke/profile result, NOT comparable to the full competition "
                  "score" if steps != 8640 else
                  "Full-horizon single-scenario result, NOT a hidden leaderboard"),
     }
-    outdir = output_root / config_dir.parent.name / config_dir.name / policy_key
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "summary.json").write_text(json.dumps(report, indent=2) + "\n")
     return report
@@ -144,11 +160,14 @@ def main() -> int:
                         default=Path("smart_buildings/training_scenarios"))
     parser.add_argument("--results-dir", type=Path,
                         default=Path("smart_buildings/results/g1_profile"))
+    parser.add_argument("--record-transitions", action="store_true",
+                        help="Store aligned observation-action-next-observation archives")
     args = parser.parse_args()
     config = args.scenarios_dir / args.building / args.weather
     results = []
     for policy_key in args.policies:
-        result = profile_one(config, policy_key, args.steps, args.results_dir)
+        result = profile_one(config, policy_key, args.steps, args.results_dir,
+                             record_transitions=args.record_transitions)
         results.append(result)
         print(json.dumps({
             key: result[key]
