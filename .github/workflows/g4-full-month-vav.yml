@@ -5,6 +5,8 @@ on:
     branches: ["feat/g4-full-horizon-vav-qualification"]
     paths:
       - ".github/workflows/g4-full-month-vav.yml"
+      - "scripts/assess_vav_qualification.py"
+      - "tests/test_vav_qualification.py"
   workflow_dispatch:
 
 permissions:
