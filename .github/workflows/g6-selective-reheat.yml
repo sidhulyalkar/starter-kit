@@ -7,6 +7,7 @@ on:
       - ".github/workflows/g6-selective-reheat.yml"
       - "smart_buildings/experiments/selective_reheat.py"
       - "scripts/run_selective_reheat.py"
+      - "scripts/diagnose_zone_physics.py"
       - "tests/test_selective_reheat.py"
   workflow_dispatch:
 
