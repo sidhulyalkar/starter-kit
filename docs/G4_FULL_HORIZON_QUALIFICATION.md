@@ -85,3 +85,43 @@ python -m scripts.assess_vav_qualification \
 The 50% cap was selected after inspecting the initial 288-step public
 Denver result, so further public comparisons are development
 replications, not an independent hidden test.
+
+## Observed full-month result: fixed 50% cap FAILS promotion
+
+Two independent complete 8640-step runs reproduce **identical**
+PID-water, sham and fixed-cap totals:
+
+- [run #40992831555](https://github.com/sidhulyalkar/starter-kit/actions/runs/40992831555)
+- [run #40993164516](https://github.com/sidhulyalkar/starter-kit/actions/runs/40993164516)
+
+Both show the same single public scenario building_train_2/denver_8.
+
+| Metric | PID-water | 50% VAV reheat cap |
+| --- | ---: | ---: |
+| Mean loss per step (lower better) | 0.04068424198 | 0.04077495402 |
+| Signed total reward (higher better) | -351.51185 | -352.29560 |
+| All-zone temperature jumps >=5 K | 971 | 648 |
+| All-zone temperature jumps >=2 K | 11,055 | 10,533 |
+| Severe unweighted zone comfort proxy rate | 0.09433007 | 0.09497141 |
+| Sum signed normalized productivity regret (closer to zero better) | -500.58588 | -501.35830 |
+| Sum normalized energy cost (lower better) | 109.55261 | 110.60560 |
+| Sum normalized carbon emission (lower better) | 146.24900 | 146.79753 |
+
+The cap was exercised on **5,631 of 8,640 steps**; reference and sham
+rewards were identical. The fixed cap causes **0.223% greater loss**,
+**471 additional severe zone comfort observations**, and worse official
+productivity, energy and carbon. It does reduce >=5 K whole-building jumps
+by 33.3%. The predeclared assessment therefore returned
+experiment_concerning_regression_or_tradeoff, not a qualification pass.
+
+**Scientific result:** the optimistic 288-step win does NOT transfer
+to the rest of the same month. Suppressing temperature shocks does not,
+by itself, improve the reward/comfort objective.
+
+**Decision:** reject fixed 50% cap for transfer policy. Do not spend
+30-scenario full-month CI to retest the *unchanged* failed candidate.
+Instead, analyze existing full-month VAV traces by time/regime, then
+predeclare a comfort-aware selective intervention and evaluate against
+PID-water plus the fixed-cap negative control. Never erase this failed
+result or select a new design from the same public scenario and call
+that scenario an untouched held-out test.
