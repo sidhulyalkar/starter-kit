@@ -1,0 +1,116 @@
+name: G4 public 30-scenario VAV intervention matrix (manual opt-in)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type RUN_30_PUBLIC_8640 to acknowledge high CI runtime"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  each-public-scenario:
+    if: ${{ inputs.confirmation == 'RUN_30_PUBLIC_8640' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - { building: building_train_1, weather: atlanta_2 }
+          - { building: building_train_1, weather: denver_7 }
+          - { building: building_train_1, weather: fairbanks_1 }
+          - { building: building_train_1, weather: phoenix_5 }
+          - { building: building_train_1, weather: singapore_8 }
+          - { building: building_train_2, weather: atlanta_3 }
+          - { building: building_train_2, weather: denver_8 }
+          - { building: building_train_2, weather: fairbanks_2 }
+          - { building: building_train_2, weather: phoenix_6 }
+          - { building: building_train_2, weather: singapore_1 }
+          - { building: building_train_4, weather: atlanta_5 }
+          - { building: building_train_4, weather: denver_2 }
+          - { building: building_train_4, weather: fairbanks_4 }
+          - { building: building_train_4, weather: phoenix_8 }
+          - { building: building_train_4, weather: singapore_3 }
+          - { building: building_train_5, weather: atlanta_6 }
+          - { building: building_train_5, weather: denver_3 }
+          - { building: building_train_5, weather: fairbanks_5 }
+          - { building: building_train_5, weather: phoenix_1 }
+          - { building: building_train_5, weather: singapore_4 }
+          - { building: building_train_7, weather: atlanta_8 }
+          - { building: building_train_7, weather: denver_5 }
+          - { building: building_train_7, weather: fairbanks_7 }
+          - { building: building_train_7, weather: phoenix_3 }
+          - { building: building_train_7, weather: singapore_6 }
+          - { building: building_train_8, weather: atlanta_1 }
+          - { building: building_train_8, weather: denver_6 }
+          - { building: building_train_8, weather: fairbanks_8 }
+          - { building: building_train_8, weather: phoenix_4 }
+          - { building: building_train_8, weather: singapore_7 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install simulator
+        run: python -m pip install -e .
+      - name: Same-source paired reference sham and frozen VAV cap
+        run: |
+          python -m scripts.run_vav_interventions \
+            --building ${{ matrix.building }} --weather ${{ matrix.weather }} \
+            --zone VAV_1 --steps 8640 --threshold-k 2 \
+            --allow-inactive-treatment \
+            --arms pid_water vav1_sham vav1_reheat50 \
+            --results-dir smart_buildings/results/g4_public_30/${{ matrix.building }}/${{ matrix.weather }}
+      - name: Per-scenario evidence integrity and guardrails
+        run: |
+          python -m scripts.assess_vav_qualification \
+            smart_buildings/results/g4_public_30/${{ matrix.building }}/${{ matrix.weather }}/paired_interventions.json \
+            --expect-scenarios 1 --steps 8640 --target-arm vav1_reheat50 \
+            --allow-inactive \
+            --output smart_buildings/results/g4_public_30/${{ matrix.building }}/${{ matrix.weather }}/qualification.json
+      - name: Preserve independent trace and report even when job fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g4-${{ matrix.building }}-${{ matrix.weather }}
+          path: smart_buildings/results/g4_public_30/
+          if-no-files-found: warn
+          retention-days: 30
+
+  all-public-report:
+    needs: each-public-scenario
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned analytic dependencies
+        run: python -m pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: g4-building_train_*
+          merge-multiple: true
+          path: smart_buildings/results/g4_public_30/
+      - name: Require EXACT 30 published scenario identities and 8640-step pairs
+        run: |
+          mapfile -t reports < <(find smart_buildings/results/g4_public_30/ -name paired_interventions.json | sort)
+          echo "Found ${#reports[@]} scenario reports"
+          python -m scripts.assess_vav_qualification "${reports[@]}" \
+            --expect-scenarios 30 --steps 8640 --target-arm vav1_reheat50 \
+            --allow-inactive --verify-public-inventory baseline_returns.json \
+            --output smart_buildings/results/g4_public_30/all_30_qualification.json
+      - name: Publish summary and detailed evidence references
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g4-public-30-summary
+          path: smart_buildings/results/g4_public_30/all_30_qualification.json
+          retention-days: 30
+          if-no-files-found: warn

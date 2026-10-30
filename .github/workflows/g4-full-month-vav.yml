@@ -1,0 +1,50 @@
+name: G4 30-day VAV 1 policy-intervention qualification
+
+on:
+  push:
+    branches: ["feat/g4-full-horizon-vav-qualification"]
+    paths:
+      - ".github/workflows/g4-full-month-vav.yml"
+      - "scripts/assess_vav_qualification.py"
+      - "tests/test_vav_qualification.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  official-simulator-full-month:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install simulator, maintain exact source version
+        run: python -m pip install -e . pytest
+      - name: Test qualification report fails closed on corrupt pairing
+        run: python -m pytest -q tests/test_vav_qualification.py tests/test_vav_interventions.py
+      - name: Full 30-day original vs sham vs preselected 50-percent reheat cap
+        run: |
+          python -m scripts.run_vav_interventions \
+            --building building_train_2 --weather denver_8 \
+            --zone VAV_1 --steps 8640 --threshold-k 2 \
+            --arms pid_water vav1_sham vav1_reheat50 \
+            --results-dir smart_buildings/results/g4_full_month
+      - name: Fail closed on truncated/malformed rollout, report comfort tradeoffs
+        run: |
+          python -m scripts.assess_vav_qualification \
+            smart_buildings/results/g4_full_month/paired_interventions.json \
+            --expect-scenarios 1 --steps 8640 \
+            --target-arm vav1_reheat50 \
+            --output smart_buildings/results/g4_full_month/qualification.json
+      - name: Preserve outcome, negative evidence, and diagnostic traces on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g4-one-public-full-month-8640-vav-study
+          path: smart_buildings/results/g4_full_month/
+          retention-days: 30
+          if-no-files-found: warn
