@@ -209,6 +209,8 @@ def diagnose(building: str, weather: str, zone: str, policy_name: str,
     summary.update({
         "reward_component_sums": reward_component_sums,
         "intervention_modified_steps": int(getattr(policy, "intervention_modified_steps", 0)),
+        "intervention_gate_active_steps": int(getattr(policy, "gate_active_steps", 0)),
+        "intervention_gate_reason_counts": dict(getattr(policy, "gate_reason_counts", {})),
         "total_reward": float(np.sum(tracker.rewards)),
         "loss_per_step": abs(float(np.sum(tracker.rewards)))/len(out),
         "all_zone_sensor_count": len(all_zone_indices),
