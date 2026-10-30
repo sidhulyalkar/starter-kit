@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/g4-fast-checks.yml"
       - "scripts/assess_vav_qualification.py"
+      - "scripts/run_public_matrix.py"
       - "scripts/run_vav_interventions.py"
       - "tests/test_vav_qualification_public.py"
   workflow_dispatch:
