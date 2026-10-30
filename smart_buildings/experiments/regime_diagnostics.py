@@ -97,7 +97,8 @@ def analyze_pair(reference: Mapping[str, Any],
         raise ValueError("Require complete 288-step days")
     if temperature_gap_k <= 0 or not math.isfinite(temperature_gap_k):
         raise ValueError("Invalid cold-offset threshold")
-    for key in ("scenario", "config_sha256", "zone", "room"):
+    for key in ("scenario", "config_sha256", "zone", "room_floor_area_m2",
+                "room_heat_capacity_j_per_kelvin"):
         if reference[key] != treatment[key]:
             raise ValueError(f"Mismatched {key} between paired episodes")
     if reference["policy"] != "pid_water":
