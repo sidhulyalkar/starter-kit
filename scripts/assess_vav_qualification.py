@@ -35,7 +35,9 @@ def number(value: Any, label: str) -> float:
 
 
 def assess_reports(reports: list[dict], *, expected_scenarios: int,
-                   steps: int, target_arm: str = "vav1_reheat50") -> dict:
+                   steps: int, target_arm: str = "vav1_reheat50",
+                   allow_inactive: bool = False,
+                   expected_inventory: set[str] | None = None) -> dict:
     """Return quality report. Regressions are results, NOT CI failures."""
     if expected_scenarios < 1 or steps < 1:
         raise ValueError("Positive expected scenario count and horizon required")
@@ -84,7 +86,14 @@ def assess_reports(reports: list[dict], *, expected_scenarios: int,
         if int(base["modified_action_steps"]) != 0 or int(sham["modified_action_steps"]) != 0:
             raise ValueError("Reference or sham unexpectedly modified actions")
         if int(treatment["modified_action_steps"]) <= 0:
-            raise ValueError(f"Intervention inactive: {scenario}")
+            if not allow_inactive:
+                raise ValueError(f"Intervention inactive: {scenario}")
+            if (abs(number(treatment["total_reward"], "reward") -
+                    number(base["total_reward"], "reward")) > 1e-8 or
+                treatment["all_zone_shocks_ge_5_kelvin"] != base["all_zone_shocks_ge_5_kelvin"] or
+                treatment["all_zone_shocks_ge_2_kelvin"] != base["all_zone_shocks_ge_2_kelvin"] or
+                treatment["all_zone_comfort_excursion_rate"] != base["all_zone_comfort_excursion_rate"]):
+                raise ValueError(f"Unexercised cap inexplicably changed outcome: {scenario}")
         if number(sham["total_reward"], "sham reward") != number(base["total_reward"], "reference reward"):
             raise ValueError(f"Sham changed reward: {scenario}")
         if (number(sham["all_zone_comfort_excursion_rate"], "sham comfort") !=
@@ -107,6 +116,7 @@ def assess_reports(reports: list[dict], *, expected_scenarios: int,
             "scenario": scenario,
             "steps": steps,
             "modified_action_steps": int(treatment["modified_action_steps"]),
+            "treatment_exercised": bool(int(treatment["modified_action_steps"]) > 0),
             "loss_baseline": reference_loss,
             "loss_treatment": intervention_loss,
             "loss_delta": delta,
@@ -133,6 +143,10 @@ def assess_reports(reports: list[dict], *, expected_scenarios: int,
             },
         }
         comparisons.append(comps)
+    if expected_inventory is not None and seen != expected_inventory:
+        missing = sorted(expected_inventory - seen)
+        extra = sorted(seen - expected_inventory)
+        raise ValueError(f"Published scenario coverage mismatch; missing={missing}, unexpected={extra}")
     comparisons.sort(key=lambda c: c["scenario"])
     baseline_mean = sum(c["loss_baseline"] for c in comparisons) / len(comparisons)
     candidate_mean = sum(c["loss_treatment"] for c in comparisons) / len(comparisons)
@@ -174,11 +188,21 @@ def main() -> int:
     p.add_argument("--steps", type=int, default=8640)
     p.add_argument("--target-arm", default="vav1_reheat50")
     p.add_argument("--output", type=Path)
+    p.add_argument("--allow-inactive", action="store_true",
+                   help="Count an unexercised cap as explicit no-effect evidence")
+    p.add_argument("--verify-public-inventory", type=Path,
+                   help="Require exact six-building / five-weather public scenario list")
     args = p.parse_args()
+    inventory = None
+    if args.verify_public_inventory is not None:
+        from scripts.run_public_matrix import published_scenarios
+        inventory = {"/".join(pair) for pair in
+                     published_scenarios(args.verify_public_inventory)}
     result = assess_reports(
         [json.loads(path.read_text()) for path in args.reports],
         expected_scenarios=args.expect_scenarios, steps=args.steps,
-        target_arm=args.target_arm
+        target_arm=args.target_arm, allow_inactive=args.allow_inactive,
+        expected_inventory=inventory,
     )
     body = json.dumps(result, indent=2, allow_nan=False) + "\n"
     if args.output is not None:
