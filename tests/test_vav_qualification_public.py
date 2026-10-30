@@ -102,9 +102,8 @@ def test_inactive_arm_in_paired_evidence_requires_identical_outcomes():
     }
     with pytest.raises(ValueError, match="No actuator"):
         paired_intervention_report(data)
-    assert (paired_intervention_report(
-        data, allow_inactive_treatment=True
-    )["arms"][-1]["treatment_exercised"] is False)
+    out = paired_intervention_report(data, allow_inactive_treatment=True)
+    assert next(r for r in out["arms"] if r["arm"] == "vav1_reheat50")["treatment_exercised"] is False
     data["vav1_reheat50"]["summary"]["total_reward"] = -1.8
     with pytest.raises(ValueError, match="Inactive treatment"):
         paired_intervention_report(data, allow_inactive_treatment=True)
