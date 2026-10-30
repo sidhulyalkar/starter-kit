@@ -121,6 +121,8 @@ class SelectiveReheatPolicy(PIDWaterResetPolicy):
 
     def reset(self) -> None:
         super().reset()
+        if hasattr(self, "_water_integral"):
+            self._water_integral = 0.0
         self._last_zone_temp_k = None
         self._gate_active = False
         self.intervention_modified_steps = 0
@@ -128,7 +130,10 @@ class SelectiveReheatPolicy(PIDWaterResetPolicy):
         self.gate_reason_counts = {}
 
     def get_action(self, obs: np.ndarray) -> dict:
-        x = np.asarray(obs, dtype=np.float64)
+        # Preserve the original sensor array dtype and values when calling
+        # the baseline. Casting float32 observations to float64 changed a
+        # no-op controller's reward by a few billionths in a public pilot.
+        x = np.asarray(obs)
         if x.ndim != 1 or len(x) != len(self.field_names):
             raise ValueError("Observation shape mismatch")
         if not np.isfinite(x).all():
