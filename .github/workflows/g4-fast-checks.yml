@@ -1,0 +1,37 @@
+name: G4 fast public inventory and inactive treatment checks
+
+on:
+  push:
+    branches: ["feat/g4-full-horizon-vav-qualification"]
+    paths:
+      - ".github/workflows/g4-fast-checks.yml"
+      - "scripts/assess_vav_qualification.py"
+      - "scripts/run_vav_interventions.py"
+      - "tests/test_vav_qualification_public.py"
+  workflow_dispatch:
+
+jobs:
+  test-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install simulator and tests
+        run: python -m pip install -e . pytest
+      - name: Validate closed-loop intervention and full-horizon report logic
+        run: |
+          python -m pytest -q \
+            tests/test_vav_qualification.py \
+            tests/test_vav_qualification_public.py \
+            tests/test_vav_interventions.py
+      - name: Reject public scenario matrix omissions before any expensive run
+        run: |
+          python -m scripts.run_public_matrix \
+            --reference-file baseline_returns.json \
+            --policies pid_water adaptive \
+            --steps 8640 --dry-run \
+            --results-dir /tmp/g4_matrix_preflight
