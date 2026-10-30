@@ -24,7 +24,8 @@ from smart_buildings.experiments.vav_interventions import (
 )
 
 
-def paired_intervention_report(reports: dict[str, dict]) -> dict:
+def paired_intervention_report(reports: dict[str, dict], *,
+                               allow_inactive_treatment: bool = False) -> dict:
     if "pid_water" not in reports or "vav1_sham" not in reports:
         raise ValueError("Missing reference or sham controller")
     ref = reports["pid_water"]
@@ -52,10 +53,20 @@ def paired_intervention_report(reports: dict[str, dict]) -> dict:
             raise ValueError(f"Arm {name} does not have the same horizon")
         if name not in ("pid_water", "vav1_sham") and \
            s["intervention_modified_steps"] < 1:
-            raise ValueError(f"No actuator intervention actually executed: {name}")
+            if not allow_inactive_treatment:
+                raise ValueError(f"No actuator intervention actually executed: {name}")
+            # No modified action is valid evidence for warm climates, but it
+            # cannot be credited with improving anything.
+            if (abs(s["total_reward"]-base["total_reward"]) > 1e-8 or
+                s["all_zone_transitions_ge_2_kelvin"] != base["all_zone_transitions_ge_2_kelvin"] or
+                s["all_zone_transitions_ge_5_kelvin"] != base["all_zone_transitions_ge_5_kelvin"] or
+                s["all_zone_comfort_excursions_ge_2_kelvin"] != base["all_zone_comfort_excursions_ge_2_kelvin"]):
+                raise ValueError(f"Inactive treatment unexpectedly changed outcome: {name}")
         row = {
             "arm": name,
             "modified_action_steps": s["intervention_modified_steps"],
+            "treatment_exercised": bool(s["intervention_modified_steps"] > 0)
+                                  if name not in ("pid_water","vav1_sham") else None,
             "total_steps": s["steps"],
             "total_reward": s["total_reward"],
             "loss_per_step": s["loss_per_step"],
@@ -110,6 +121,8 @@ def main() -> int:
     p.add_argument("--zone",default="VAV_1")
     p.add_argument("--steps",type=int,default=288)
     p.add_argument("--threshold-k",type=float,default=2.0)
+    p.add_argument("--allow-inactive-treatment",action="store_true",
+                   help="Valid no-effect evidence when warm climates never invoke reheat")
     p.add_argument("--arms",nargs="+",default=list(EXPERIMENT_ARMS),
                    choices=list(EXPERIMENT_ARMS))
     p.add_argument("--results-dir",type=Path,
@@ -128,7 +141,9 @@ def main() -> int:
             args.building,args.weather,args.zone,name,args.steps,
             args.threshold_k,args.results_dir
         )
-    summary=paired_intervention_report(reports)
+    summary=paired_intervention_report(
+        reports,allow_inactive_treatment=args.allow_inactive_treatment
+    )
     args.results_dir.mkdir(parents=True,exist_ok=True)
     (args.results_dir/"paired_interventions.json").write_text(
         json.dumps(summary,indent=2,allow_nan=False)+"\n"
