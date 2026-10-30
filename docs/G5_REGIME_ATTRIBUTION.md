@@ -77,3 +77,44 @@ python -m scripts.analyze_regimes \
   --steps 8640 \
   --out smart_buildings/results/g5_regimes/daily_thermal_regimes.json
 ~~~
+
+## Observed G5 offline diagnosis (2026-10-29)
+
+[Green no-rerun G5 workflow](https://github.com/sidhulyalkar/starter-kit/actions/runs/41014658385):
+**5 diagnostic tests passed**, verified artifact re-download, and exactly
+8640 records per arm (30 days). Download the generated JSON/CSV
+artifact from the workflow; original G4 physics traces were not changed.
+
+Observed VAV_1 statistics on building_train_2/denver_8:
+
+| Physics statistic | PID-water | Fixed 50% cap |
+| --- | ---: | ---: |
+| 30-day mean end temperature (K) | 289.6669 | 289.0746 |
+| Mean realized reheat native fraction | 0.5848 | 0.3537 |
+| Fraction of steps with reheat >=95% | 46.96% | 0% |
+| Mean reported local source power (W) | 1148.68 | 971.09 |
+| Target-zone 5-min changes >=2 K | 1041 | 781 |
+| Target-zone 5-min changes >=5 K | 344 | 12 |
+| Maximum observed 5-min jump (K) | 8.508 | 5.700 |
+
+The cap leaves this zone **0.5923 K colder on average**, and a
+negative *average* treatment-minus-reference temperature occurs on
+**all 30 days**, including day 1. There are 1,397 five-minute steps where
+the capped zone is >=1 K colder than reference, with the longest
+uninterrupted such run lasting 27 steps (135 minutes). The first day
+had 44 steps at least 1 K colder, and 15 fewer >=2 K VAV_1 jumps.
+
+This directly falsifies the explanation that the cap only starts cooling
+VAV_1 after day 1: the lower mean temperature is present on the first
+day as well, even though total reward initially improved. The **reward
+reversal** must depend on long-horizon accumulated effects, other-zone
+interactions and/or time-varying occupancy, cost or climate regimes.
+Per-day reward and comfort are not available in these saved single-zone
+traces, so any more specific claim would be invented.
+
+**Next hypothesis:** selectively cap reheat only when the currently
+observed zone is rising rapidly while moderately below its heating
+setpoint. Never cap when it is falling or deeply underheated. Test as
+an observation-only standalone experimental policy, against both
+PID-water and the rejected fixed cap. Establish controller-independent
+building/weather validation before promotion.
