@@ -1,0 +1,52 @@
+name: G5 full-month regime attribution from saved artifacts
+
+on:
+  push:
+    branches: ["feat/g5-regime-attribution"]
+    paths:
+      - ".github/workflows/g5-regime-diagnostics.yml"
+      - "smart_buildings/experiments/regime_diagnostics.py"
+      - "scripts/analyze_regimes.py"
+      - "tests/test_regime_diagnostics.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  offline-daywise-attribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install existing simulator math dependencies and tests
+        run: python -m pip install -e . pytest
+      - name: No-invented-reward, full-trace and alignment tests
+        run: python -m pytest -q tests/test_regime_diagnostics.py
+      - name: Download verified prior full-month artifact, no rerun
+        uses: actions/download-artifact@v4
+        with:
+          name: g4-one-public-full-month-8640-vav-study
+          run-id: 40993164516
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: smart_buildings/results/g5_source
+      - name: Report actual archived days and identify paired zone traces
+        run: |
+          find smart_buildings/results/g5_source -type f -maxdepth 9 | sort
+          python -m scripts.analyze_regimes \
+            --artifact-dir smart_buildings/results/g5_source \
+            --steps 8640 \
+            --out smart_buildings/results/g5_regimes/daily_thermal_regimes.json
+      - name: Archive dated evidence; do not replace original source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g5-full-month-reheat-regime-analysis
+          path: smart_buildings/results/g5_regimes/
+          retention-days: 30
+          if-no-files-found: warn
